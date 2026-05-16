@@ -1,0 +1,385 @@
+TOROCONOMY — IMPORTANT NOTES FOR FUTURE CHANGES
+================================================
+
+DEVELOPER
+---------
+Discord ID: 1182533932546273350
+Set in: src/prefixCommands/dev.js → DEV_IDS array
+
+FORMATTING RULES
+----------------
+- Minimal emoji use unless told otherwise or a custom emoji is appropriate
+- Always include ALL commands in !help when adding new ones
+- Help is paginated (currently 11 pages): Economy, Jobs, Progression, Material Shop, Crafting, Dev,
+  Organizations, Cults & Crime, Government & Items, Nation Guide, Licenses
+
+PERFORMANCE SYSTEM (work.js)
+-----------------------------
+- All 5 performance levels (Very Low, Low, Mid, High, Very High) are 20/20/20/20/20
+- Every tier has equal chances — do NOT reintroduce weighted tables
+- Performance names: veryLow, low, mid, high, veryHigh
+
+AUTO-PROMOTION LOGIC (work.js)
+--------------------------------
+- When a user's jobXP hits the xpRequiredForBranch threshold for branch+1,
+  they are automatically promoted to the next branch job (job.promotesTo)
+- Promotion fires inside the !work command after XP is added
+- On promotion: currentJob updates, jobWorkCount resets, paycheckCount resets,
+  old job title is pushed to jobHistory
+- Paycheck-based promotions still exist in paycheck.js (branch 1 = 3 paychecks, branch 2 = 5)
+
+MATERIAL MARKET SYSTEM
+-----------------------
+- Stock is intentionally LOW to create scarcity and competition
+- Daily stock ranges: common 5-20, uncommon 3-12, rare 1-6, illegal 0-3
+- Stock rolls lazily on first access each day (getMarketState in src/utils/marketUtils.js)
+- Prices are dynamic: low stock = high demand = higher price (±40% from base)
+- Trend arrows compare today's stock to previousStock (saved on each daily refresh)
+- MaterialMarket model in src/models/MaterialMarket.js
+
+CRAFTING SYSTEM
+---------------
+- Completely separate from the Material Shop
+- Crafting consumes materials from UserInventory
+- Multipliers: 1.0 (Standard), 1.5 (Premium), 2.0 (Military Grade), 3.0 (Prototype)
+- scaleRecipe() in craftableItems.js handles qty scaling via Math.ceil
+- UserInventory model tracks both raw materials and crafted items
+- !recipe <item_id> — shows the full recipe for all 4 multiplier tiers
+
+INFLATION SYSTEM
+----------------
+- Stored in GuildSettings.inflation (percentage, default 0)
+- Set via: !dev set-inflation <rate>  (e.g. 3.5 = 3.5%)
+- At 0% inflation: 1 UEC = uecRate local units (e.g. $100 = 1 UEC by default)
+- Higher inflation weakens server money: effectiveRate = uecRate * (1 + inflation/100)
+  → 10% inflation: $110 local = 1 UEC (takes more server money to buy UEC)
+  → 50% inflation: $150 local = 1 UEC
+- Both buy and sell use effectiveRate so the system is symmetric
+- Shown clearly in !exchange info embed with an inflation warning note
+
+LICENSE SYSTEM
+--------------
+- Data lives in: src/data/licenseData.js (all license defs + test questions)
+- Model lives in: src/models/UserLicense.js (UserLicense schema, userId-keyed)
+- Commands:
+    !license-shop / !lshop          — browse licenses + owned status
+    !buy-license <id>               — purchase + auto-starts the test
+- Test flow:
+    1. Fee is deducted immediately on purchase
+    2. 3-question multiple-choice test starts after a 3s intro
+    3. Buttons: A / B / C / D — per-question 2-minute timeout
+    4. Pass (2/3 correct) → license saved permanently to UserLicense
+    5. Fail → fee forfeited, player must rebuy
+    6. Timeout → fee refunded
+- Current licenses (id → name):
+    law       → Law License        ($5,000)  — gates Law Enforcement jobs
+    medic     → Medic License      ($5,000)  — gates Medical Industry jobs
+    business  → Business License   ($7,500)  — gates future global shop
+    driver    → Driver's License   ($2,500)  — gates Logistics jobs
+- To add a new license: add an entry to LICENSES[] and add 3 questions to TESTS{}
+  in licenseData.js — no schema or model changes required
+- Future job enforcement: check UserLicense.licenses.get(licenseId)?.active before
+  allowing !apply for gated jobs (use the requiredBy field on each license definition)
+- Business License is reserved for future global shop — do NOT gate jobs with it yet
+
+FUTURE ECONOMY SYSTEM (NOT YET IMPLEMENTED)
+---------------------------------------------
+- Government investment: Will increase material stock and reduce prices in future updates
+  → Placeholder field: MaterialMarket.govInvestment
+- Mining expansion: Player-funded stock cap increases
+  → Placeholder field: MaterialMarket.miningExpansion
+- Trade routes: Cross-server material supply bonuses
+  → Placeholder field: MaterialMarket.tradeRouteBonus
+- Global shortages: Scripted 24-48h scarcity events
+  → Placeholder field: MaterialMarket.globalShortage
+- Economic crashes: Market-wide price shock events
+  → To be implemented in marketUtils.js
+- Global Shop: Will require Business License (license id: 'business')
+  → Do NOT build yet — license system is Phase 1 prep only
+
+1 UCX = $1 USD (Universal Currency Exchange)
+
+FILE STRUCTURE
+--------------
+index.js                              - Entry point
+src/
+  data/
+    jobs.js                           - All job definitions + xpRequiredForBranch map
+    jobResponses.js                   - Flavor text per job/performance
+    materials.js                      - All raw/processed material definitions + price logic
+    craftableItems.js                 - All craftable item definitions + recipe scaling
+    licenseData.js                    - All license definitions + test questions    [NEW]
+  models/
+    GuildSettings.js                  - Per-server settings schema
+    MaterialMarket.js                 - Daily market state (stock, trend, demand)
+    UserInventory.js                  - Player inventory (materials + crafted items)
+    UserLicense.js                    - Player license storage + test state         [NEW]
+    UserProfile.js                    - User schema
+  prefixCommands/
+    apply.js                          - Apply for a job
+    balance.js                        - Check balance
+    buy.js                            - Buy materials from the shop
+    buy-license.js                    - Purchase a license + run qualifying test    [NEW]
+    craft.js                          - Craft items from materials
+    craft-list.js                     - View all craftable items
+    recipe.js                         - View a specific item's recipe
+    deposit.js                        - Deposit to bank
+    dev.js                            - Dev-only commands
+    exchange.js                       - Cash <-> UEC conversion
+    give-cash.js                      - Send cash to another user
+    give-item.js                      - Give items to another user
+    help.js                           - Paginated command list (11 pages)           [UPDATED]
+    help-craft.js                     - Crafting tutorial (4 pages)
+    import-item.js                    - Import items from another server
+    inventory.js                      - View player inventory
+    job-list.js                       - View all jobs
+    jobs.js                           - View available jobs
+    license-shop.js                   - Browse license shop                         [NEW]
+    myjob.js                          - View current job info
+    paycheck.js                       - Claim paycheck + paycheck-based promotions
+    ping.js                           - Latency check
+    quit.js                           - Quit current job
+    shop.js                           - Material shop with market data
+    use.js                            - Use consumable items
+    withdraw.js                       - Withdraw from bank
+    work.js                           - Work session + XP-based auto-promotion
+  slashCommands/
+    help.js                           - Slash version of help
+    prefix.js                         - Change prefix
+    setup.js                          - Server economy setup
+  utils/
+    marketUtils.js                    - Lazy market refresh + stock deduction
+    economyEngine.js                  - Budget + inflation tracking
+    govUtils.js                       - Government upgrade utilities
+    idUtils.js                        - ID generation utilities
+    jobIdMap.js                       - Numeric job ID mapping
+
+WHEN ADDING NEW COMMANDS
+------------------------
+1. Create the file in src/prefixCommands/
+2. ALWAYS create a matching slash command in src/slashCommands/ (see rules below)
+3. Add it to help.js on the correct page
+4. Register it in index.js if needed
+5. Update this file
+
+SLASH COMMAND RULES (MANDATORY FOR EVERY NEW PREFIX COMMAND)
+-------------------------------------------------------------
+Every prefix command MUST have a /slash equivalent. The prefix command is NOT
+replaced — both must exist and work. Follow this pattern:
+
+SIMPLE COMMANDS (no user-required args):
+  Use buildShim from src/utils/slashShim.js and delegate straight to the prefix execute.
+
+    const { SlashCommandBuilder } = require('discord.js');
+    const { buildShim } = require('../utils/slashShim');
+
+    module.exports = {
+      data: new SlashCommandBuilder()
+        .setName('mycommand')
+        .setDescription('Does the thing'),
+      async execute(interaction, client) {
+        const prefixCmd = client.prefixCommands.get('mycommand');
+        if (!prefixCmd) return interaction.reply({ content: '❌ Command not found.', ephemeral: true });
+        await prefixCmd.execute(buildShim(interaction), [], client);
+      },
+    };
+
+COMMANDS WITH STRING/INTEGER ARGS:
+  Declare options on the SlashCommandBuilder, extract them, build an args[] array,
+  and pass it to the prefix execute.
+
+    data: new SlashCommandBuilder()
+      .setName('deposit')
+      .setDescription('Deposit cash into your bank')
+      .addStringOption(opt =>
+        opt.setName('amount').setDescription('Amount (number, "half", or "all")').setRequired(true)
+      ),
+    async execute(interaction, client) {
+      const prefixCmd = client.prefixCommands.get('deposit');
+      const amount = interaction.options.getString('amount');
+      await prefixCmd.execute(buildShim(interaction), [amount], client);
+    },
+
+COMMANDS THAT TAKE A @USER MENTION:
+  Use addUserOption, then pass the resolved User as the second arg to buildShim.
+  The shim's mentions.users.first() will return that user, matching what the
+  prefix command expects.
+
+    data: new SlashCommandBuilder()
+      .setName('rob')
+      .setDescription("Attempt to rob another user's cash")
+      .addUserOption(opt => opt.setName('user').setDescription('User to rob').setRequired(true)),
+    async execute(interaction, client) {
+      const prefixCmd = client.prefixCommands.get('rob');
+      const target = interaction.options.getUser('user');
+      await prefixCmd.execute(buildShim(interaction, target), [], client);
+    },
+
+COMMANDS WITH SUBCOMMANDS (e.g. !org info, !org deposit):
+  Use addSubcommand() on the builder. In execute(), get the subcommand name and
+  pass it as args[0], then append any extra values.
+
+    async execute(interaction, client) {
+      const sub = interaction.options.getSubcommand();
+      const amount = interaction.options.getInteger('amount');
+      const args = [sub];
+      if (amount !== null) args.push(amount.toString());
+      await prefixCmd.execute(buildShim(interaction, target), args, client);
+    },
+
+DEV-ONLY COMMANDS:
+  Copy the isDev() check from prefixCommands/dev.js into the slash file and
+  return an ephemeral error for non-devs BEFORE delegating. Keep DEV_IDS in
+  sync with prefixCommands/dev.js.
+
+HOW slashShim WORKS:
+  src/utils/slashShim.js exports buildShim(interaction, mentionedUser = null).
+  It returns an object shaped like a Discord Message with:
+    .author         → interaction.user
+    .guild          → interaction.guild
+    .channel        → interaction.channel
+    .createdTimestamp → interaction.createdTimestamp
+    .mentions.users.first() → mentionedUser (or null)
+    .reply(payload) → interaction.reply / followUp (handles deferred/double-reply safely)
+  The prefix command logic never needs to know it's running from a slash interaction.
+
+ORGANIZATION / CULT INVITE SYSTEM (FIXED)
+------------------------------------------
+⚠️  REMINDER: When delivering any update to this bot, the output must ALWAYS be
+    a .zip of the ENTIRE bot (all files), not just the changed files.
+    Recipients should be able to extract and run it without needing the old version.
+
+WHAT CHANGED IN THIS UPDATE:
+  src/utils/invitationStore.js          - NEW FILE. In-memory invite store with TTL,
+                                          duplicate prevention, and auto-cleanup.
+                                          Shared by both org and cult invite flows.
+
+  src/prefixCommands/cult.js            - MODIFIED. `!cult invite` no longer auto-adds
+                                          the user. Now sends a ping + embed with
+                                          Join / Decline buttons. Invite expires after
+                                          INVITE_TTL_MS (default 60s, set in invitationStore.js).
+
+  src/prefixCommands/org.js             - MODIFIED. Same fix as cult.js but for
+                                          `!org invite`. Uses the same invitationStore.
+
+NO OTHER FILES WERE CHANGED. If you see differences elsewhere, something went wrong.
+
+TO CONFIGURE INVITE EXPIRY TIME:
+  Open src/utils/invitationStore.js and change:
+    const INVITE_TTL_MS = 60_000;   ← milliseconds (60000 = 60 seconds)
+
+
+INFLATION FIX (THIS UPDATE)
+-------------------------------------
+⚠️  CRITICAL BUG FIX: Server inflation was NOT being applied to material shop
+    prices or crafting cost estimates. Prices shown to players were always the
+    raw base price regardless of the server's inflation setting.
+
+WHAT CHANGED:
+
+  src/models/MaterialMarket.js      - FIXED. Added `guildId` field. Changed
+                                      unique index from materialId alone to
+                                      compound { guildId, materialId }. This
+                                      ensures each server has its own stock
+                                      levels and market state — previously all
+                                      servers shared a single global market.
+
+  src/utils/marketUtils.js          - FIXED. getMarketState(guildId) and
+                                      deductStock(guildId, materialId, amount)
+                                      now require and use guildId. All DB
+                                      queries are scoped to the guild. Server
+                                      economies are now fully isolated.
+
+  src/prefixCommands/shop.js        - FIXED. Now fetches GuildSettings.inflation
+                                      and applies inflatedPrice() to every
+                                      displayed price. Passes guildId to
+                                      getMarketState(). Shows an inflation/
+                                      deflation warning banner in the embed
+                                      when the rate is non-zero. UEC prices
+                                      are never shown here — only local SC.
+
+  src/prefixCommands/buy.js         - FIXED. Now passes guildId to
+                                      getMarketState() and deductStock() so
+                                      stock deductions hit the correct guild's
+                                      market, not a global pool. addToBudget
+                                      and updateInflation already used guildId
+                                      correctly and were not changed.
+
+  src/prefixCommands/craft.js       - FIXED. Now fetches GuildSettings.inflation
+                                      and applies inflatedPrice() to each
+                                      ingredient's market price when computing
+                                      the estimated craft cost. Passes guildId
+                                      to getMarketState() and UserInventory
+                                      lookup. Inflation surcharge is displayed
+                                      in the craft result embed.
+
+INFLATION RULES (re-confirmed):
+  - Higher inflation  → higher local (SC) prices in shop, buy, and craft
+  - Lower inflation   → lower local (SC) prices in shop, buy, and craft
+  - UEC prices        → NEVER change (inflation only affects server currency)
+  - Server economies  → fully isolated — no cross-guild stock or price leakage
+
+DB MIGRATION NOTE:
+  The MaterialMarket collection now requires a guildId field. Existing documents
+  (without guildId) will be orphaned and ignored on the next market refresh.
+  Each server will automatically repopulate its own market on first !shop or
+  !buy access. No manual migration is required.
+
+
+⚠️  CRITICAL DESIGN CLARIFICATION:
+    UEC is NOT a cryptocurrency, blockchain token, or tradeable market asset.
+    UEC is a STABLE universal reference currency — it NEVER fluctuates.
+
+WHAT CHANGED:
+  src/prefixCommands/exchange.js    - REWRITTEN. Removed all buy/sell/trading
+                                      mechanics. !exchange / !uec is now purely
+                                      an info command showing UEC reference info,
+                                      server inflation status, and local balances.
+                                      No cash ↔ UEC conversion exists anymore.
+
+  src/prefixCommands/balance.js     - FIXED. Removed the misleading "UEC Total"
+                                      field that falsely merged local cash with
+                                      UEC (treating them as interchangeable).
+                                      UEC balance is now shown as its own
+                                      separate field, clearly distinct from
+                                      local cash/bank balances.
+
+  src/prefixCommands/help.js        - UPDATED. Economy page entry for !exchange
+                                      corrected to reflect info-only purpose.
+
+UEC RULES (DO NOT VIOLATE IN FUTURE CHANGES):
+  - UEC does NOT fluctuate. Ever.
+  - UEC cannot be bought with local cash or sold for local cash.
+  - UEC is earned through jobs, orders, and in-game progression only.
+  - Local server currencies are affected by inflation — UEC is not.
+  - UEC acts as a universal price reference across all servers.
+  - !exchange (!uec) shows inflation context and UEC info — nothing more.
+  - Do NOT reintroduce any conversion/trading/market system for UEC.
+
+
+LEADERBOARD SYSTEM (!leaderboard / !lb)
+-----------------------------------------
+File: src/prefixCommands/leaderboard.js
+
+8 boards total:
+  Local/Global toggle: cash, uec, work, jobs (job XP), org, cult
+  Global only:         server, shop
+
+Default board on !lb is Cash (local scope).
+Subcommand arg: !lb <board>  e.g. !lb shop, !lb org
+
+Scope buttons use custom emojis:
+  Local:  <:pinpoint:1504417184884064386>
+  Global: <:globe:1504417138641998034>
+
+Board switcher is split across two button rows (Discord 5-button limit per row).
+Collector is locked to the command author. Buttons disable after 60s.
+
+DESIGN RULES FOR THIS COMMAND:
+  - UEC is a REFERENCE currency — do NOT describe or display it as a crypto asset,
+    a tradeable token, or anything that fluctuates. It is a stable unit of account.
+    Label it "UEC reference balance", nothing more.
+  - Use minimal emojis. Only the UEC custom emoji and the scope custom emojis are
+    appropriate. Do NOT add decorative emojis to board labels or entry lines.
+  - Entry format: **N.** Name • valueDisplay\n> short extra info
+  - Abbreviate large numbers: 1.5K, 2.3M, 4.1B
